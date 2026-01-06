@@ -41,7 +41,7 @@ jobs:
             [void]$xml.Project.AppendChild($group)
           }
           function Set-Or-Create($name, $value) {
-            $node = $group.$name
+            $node = $group.SelectSingleNode($name)
             if (-not $node) {
               $node = $xml.CreateElement($name)
               [void]$group.AppendChild($node)
