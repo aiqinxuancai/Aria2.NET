@@ -2,8 +2,8 @@ name: Publish to NuGet
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - '*'
 
 jobs:
   build-and-publish:
@@ -13,27 +13,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Increment latest version tag
+      - name: Resolve version from tag
         shell: pwsh
         run: |
-          git fetch --tags
-          $tags = git tag --sort=-v:refname | Where-Object { $_ -match '^\d+\.\d+\.\d+$' }
-      
-          $latestTag = $tags | Select-Object -First 1
-          $versionParts = $latestTag -split '\.'
-          if ($versionParts.Length -ne 3) {
-            Write-Error "Latest tag format is invalid: $latestTag"
+          $tag = $Env:GITHUB_REF_NAME
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            Write-Error "No tag found in GITHUB_REF_NAME"
             exit 1
           }
-          $versionParts[2] = [string]([int]$versionParts[2] + 1)
-          $newVersion = $versionParts -join '.'
-      
-          echo "NEXT_VERSION=$newVersion" | Out-File -Append -FilePath $Env:GITHUB_ENV
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag $newVersion
-          git push origin $newVersion
-          Write-Output "Created and pushed new tag: $newVersion"
+          if ($tag.StartsWith('v')) {
+            $tag = $tag.Substring(1)
+          }
+          if ($tag -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Tag must be a SemVer like 1.2.3 or v1.2.3. Got: $Env:GITHUB_REF_NAME"
+            exit 1
+          }
+          echo "PACKAGE_VERSION=$tag" | Out-File -Append -FilePath $Env:GITHUB_ENV
+          
+      - name: Update project version
+        shell: pwsh
+        run: |
+          $csproj = "Aria2NET/Aria2NET.csproj"
+          [xml]$xml = Get-Content $csproj
+          $group = $xml.Project.PropertyGroup | Select-Object -First 1
+          if (-not $group) {
+            $group = $xml.CreateElement("PropertyGroup")
+            [void]$xml.Project.AppendChild($group)
+          }
+          function Set-Or-Create($name, $value) {
+            $node = $group.$name
+            if (-not $node) {
+              $node = $xml.CreateElement($name)
+              [void]$group.AppendChild($node)
+            }
+            $node.InnerText = $value
+          }
+          Set-Or-Create "Version" $Env:PACKAGE_VERSION
+          Set-Or-Create "AssemblyVersion" $Env:PACKAGE_VERSION
+          Set-Or-Create "FileVersion" $Env:PACKAGE_VERSION
+          $xml.Save($csproj)
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
@@ -44,10 +62,10 @@ jobs:
         run: dotnet restore Aria2NET/Aria2NET.csproj
 
       - name: Build
-        run: dotnet build Aria2NET/Aria2NET.csproj -c Release --no-restore -p:Version=${{ env.NEXT_VERSION }} -p:AssemblyVersion=${{ env.NEXT_VERSION }}
+        run: dotnet build Aria2NET/Aria2NET.csproj -c Release --no-restore
 
       - name: Pack NuGet package
-        run: dotnet pack Aria2NET/Aria2NET.csproj -c Release --no-build -p:Version=${{ env.NEXT_VERSION }} -p:AssemblyVersion=${{ env.NEXT_VERSION }}
+        run: dotnet pack Aria2NET/Aria2NET.csproj -c Release --no-build
 
       - name: Push to NuGet
         run: dotnet nuget push Aria2NET/bin/Release/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
