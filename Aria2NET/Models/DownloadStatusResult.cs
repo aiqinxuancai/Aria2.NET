@@ -144,6 +144,12 @@ public class DownloadStatusResult
     /// </summary>
     [JsonProperty("following")]
     public String? Following { get; set; }
+
+    /// <summary>
+    ///     Start time of the download in Unix time (seconds).
+    /// </summary>
+    [JsonProperty("startTime")]
+    public Int64 StartTime { get; set; }
 }
 
 public class DownloadStatusBittorrent

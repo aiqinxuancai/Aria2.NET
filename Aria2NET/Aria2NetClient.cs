@@ -527,6 +527,33 @@ public class Aria2NetClient
         await _requests.GetRequestAsync("aria2.removeDownloadResult", cancellationToken, gid);
     }
 
+    /// <summary>
+    ///     This method returns completed (FINISHED) file paths from download results for the given GID.
+    /// </summary>
+    /// <param name="gid">The GID of the download.</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>A list of completed file paths.</returns>
+    public async Task<IList<String>> GetCompletedFilesAsync(String gid, CancellationToken cancellationToken = default)
+    {
+        return await _requests.GetRequestAsync<List<String>>("aria2.getCompletedFiles", cancellationToken, gid);
+    }
+
+    /// <summary>
+    ///     This method renames a completed file for the given GID. The new path is the directory of srcPath plus destName.
+    ///     destName must be a file name without path separators or drive prefixes.
+    /// </summary>
+    /// <param name="gid">The GID of the download.</param>
+    /// <param name="srcPath">The full path of the completed file.</param>
+    /// <param name="destName">The new file name (no path information).</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>True if successful.</returns>
+    public async Task<Boolean> RenameCompletedFileAsync(String gid, String srcPath, String destName, CancellationToken cancellationToken = default)
+    {
+        var result = await _requests.GetRequestAsync<String>("aria2.renameCompletedFile", cancellationToken, gid, srcPath, destName);
+
+        return result == "OK";
+    }
+
     public async Task<SessionResult> GetSessionInfo(CancellationToken cancellationToken = default)
     {
         return await _requests.GetRequestAsync<SessionResult>("aria2.getSessionInfo", cancellationToken);
